@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfólio Mave — Guarda-chuva Interativo</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #d7dde6;
+      --soft: #eef2f6;
+      --orange: #f28a22;
+      --orange-2: #ffb35c;
+      --green: #39b76a;
+      --purple: #8754ff;
+      --red: #e45454;
+      --blue: #3b82f6;
+      --teal: #129a8f;
+      --gray: #76839a;
+      --shadow-1: 0 18px 40px rgba(17,24,39,.08);
+      --shadow-2: 0 28px 70px rgba(17,24,39,.14);
+      --radius-xl: 26px;
+      --radius-lg: 20px;
+      --sidebar-width: 410px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; min-height:100%; font-family: Inter, Arial, sans-serif; color:var(--text); background: radial-gradient(circle at top, #fbfcfd 0%, #f5f6f8 48%, #eef2f6 100%); }
+    body::before {
+      content:"";
+      position:fixed;
+      inset:0;
+      background-image:
+        linear-gradient(rgba(31,41,55,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(31,41,55,.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events:none;
+      z-index:0;
+    }
+    .app { position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
+    .topbar {
+      position:sticky; top:0; z-index:30;
+      display:flex; align-items:center; justify-content:space-between; gap:18px;
+      padding:18px 24px; background:rgba(255,255,255,.78); backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(215,221,230,.9);
+    }
+    .title-wrap { display:flex; align-items:center; gap:14px; }
+    .brand-dot { width:16px; height:16px; border-radius:50%; background:linear-gradient(135deg,var(--orange),var(--orange-2)); box-shadow:0 0 0 6px rgba(242,138,34,.12); flex:none; }
+    .title h1 { margin:0; font-size:24px; line-height:1.08; letter-spacing:-.02em; }
+    .title p { margin:5px 0 0; font-size:13px; color:var(--muted); max-width:760px; }
+    .actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .file-input { display:none; }
+    .btn, .file-label {
+      border:none; border-radius:999px; padding:11px 16px; font-size:14px; font-weight:700; cursor:pointer;
+      text-decoration:none; transition:.18s ease; display:inline-flex; align-items:center; gap:8px;
+    }
+    .btn.secondary { background:#ffffff; color:#374151; box-shadow: inset 0 0 0 1px #dde3eb, var(--shadow-1); }
+    .btn.secondary:hover { transform:translateY(-1px); }
+    .file-label { background:linear-gradient(135deg,var(--orange),#ff9f2f); color:#fff; box-shadow: var(--shadow-1); }
+    .file-label:hover { transform:translateY(-1px); }
+    .file-badge { padding:8px 12px; background:#fff; border-radius:999px; box-shadow: inset 0 0 0 1px #e5e7eb; color:var(--muted); font-size:12px; max-width:280px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .workspace { position:relative; flex:1; overflow:hidden; }
+    .map-area { position:absolute; inset:0; overflow:auto; padding:28px 24px 24px; }
+    .board {
+      position:relative; min-width:1320px; min-height:880px; border-radius:34px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(242,138,34,.08), transparent 26%),
+        linear-gradient(180deg, #fbfcfd 0%, #f5f7fa 52%, #eef2f7 100%);
+      border:1px solid #e7ebf1; box-shadow: inset 0 1px 0 rgba(255,255,255,.8), var(--shadow-1);
+      overflow:hidden;
+    }
+    .board::after {
+      content:"";
+      position:absolute; inset:22px;
+      border-radius:26px;
+      border:1px dashed rgba(118,131,154,.18);
+      pointer-events:none;
+    }
+
+    .hero { position:absolute; left:50%; top:34px; transform:translateX(-50%); width:660px; text-align:center; z-index:4; }
+    .hero-pill {
+      display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:999px;
+      background:rgba(255,255,255,.92); border:1px solid #edf1f5; box-shadow:var(--shadow-1);
+      font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#8b5a15;
+    }
+    .hero-cloud {
+      position:relative; margin-top:16px; background:linear-gradient(180deg,#ffffff 0%,#fffaf4 100%);
+      border:1px solid #ece7e0; border-radius:34px; padding:26px 34px 28px; box-shadow:var(--shadow-2);
+    }
+    .hero-cloud::before, .hero-cloud::after {
+      content:""; position:absolute; background:linear-gradient(180deg,#fff 0%,#fffaf4 100%); border:1px solid #ece7e0; border-radius:999px; z-index:-1;
+    }
+    .hero-cloud::before { width:120px; height:74px; left:46px; top:-26px; }
+    .hero-cloud::after { width:160px; height:86px; right:54px; top:-32px; }
+    .hero h2 { margin:0; font-size:32px; letter-spacing:-.03em; line-height:1.02; }
+    .hero p { margin:10px auto 0; max-width:520px; color:var(--muted); font-size:14px; line-height:1.55; }
+    .mini-stats { margin-top:18px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+    .mini-chip { background:#f8fafc; border:1px solid #edf2f7; color:#374151; padding:8px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+
+    .svg-layer { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; }
+    .cluster { position:absolute; left:0; width:100%; display:grid; justify-content:center; gap:22px; padding:0 44px; z-index:5; }
+    .cluster.top { top:295px; grid-template-columns: repeat(3, minmax(240px, 320px)); }
+    .cluster.bottom { top:585px; grid-template-columns: repeat(4, minmax(220px, 290px)); }
+
+    .category-card {
+      position:relative; min-height:192px; background:rgba(255,255,255,.96); border-radius:24px; border:1px solid #e8edf3;
+      padding:18px 18px 16px; box-shadow:var(--shadow-1); cursor:pointer; transition:.18s ease; display:flex; flex-direction:column; justify-content:space-between;
+      overflow:hidden;
+    }
+    .category-card::before {
+      content:""; position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,0) 45%, rgba(255,255,255,.7) 100%); pointer-events:none;
+    }
+    .category-card:hover { transform:translateY(-3px) scale(1.01); box-shadow:var(--shadow-2); }
+    .category-card.active { box-shadow: 0 0 0 4px rgba(242,138,34,.18), var(--shadow-2); border-color:#ffd9b0; }
+    .accent { position:absolute; left:0; top:0; width:100%; height:8px; }
+    .card-header { position:relative; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+    .card-title { margin:0; font-size:22px; line-height:1.08; letter-spacing:-.02em; }
+    .card-tag { background:#fff3e6; color:#b86100; border:1px solid #ffd6a7; border-radius:999px; padding:5px 10px; font-size:11px; font-weight:800; white-space:nowrap; }
+    .card-summary { position:relative; margin-top:12px; color:var(--muted); font-size:13px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+    .card-footer { position:relative; display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .metric { padding:7px 10px; border-radius:999px; background:#f3f5f8; border:1px solid #e9edf3; font-size:12px; font-weight:700; color:#374151; }
+    .metric.launch { background:#ecfdf3; color:#067647; border-color:#ccefdc; }
+
+    .sidebar {
+      position:absolute; top:0; right:0; width:min(var(--sidebar-width), 95vw); height:100%; background:rgba(255,255,255,.98);
+      border-left:1px solid #e7ebf0; box-shadow:-24px 0 50px rgba(17,24,39,.14); z-index:20; display:flex; flex-direction:column;
+      transform:translateX(100%); transition:transform .23s ease;
+    }
+    .sidebar.open { transform:translateX(0); }
+    .sidebar-header { padding:24px 22px 16px; border-bottom:1px solid #edf1f5; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .sidebar-overline { color:#b86100; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+    .sidebar-title { margin:8px 0 0; font-size:28px; line-height:1.03; letter-spacing:-.03em; }
+    .close-btn { width:40px; height:40px; border:none; border-radius:50%; background:#f3f5f8; color:#111827; cursor:pointer; font-size:22px; box-shadow: inset 0 0 0 1px #e5e9f0; }
+    .sidebar-body { padding:18px 22px 26px; overflow:auto; }
+    .hint { color:var(--muted); font-size:14px; line-height:1.6; }
+    .stats-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; margin-bottom:18px; }
+    .stat-card { background:#f8fafc; border:1px solid #ecf0f5; border-radius:16px; padding:12px 13px; }
+    .stat-label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:800; }
+    .stat-value { margin-top:6px; font-size:18px; font-weight:800; line-height:1.1; }
+    .section { margin-top:18px; }
+    .section h3 { margin:0 0 10px; font-size:13px; font-weight:800; color:#111827; letter-spacing:.05em; text-transform:uppercase; }
+    .section p { margin:0; color:#475467; line-height:1.65; font-size:14px; }
+    .subcat { background:#fff; border:1px solid #edf2f7; border-radius:18px; padding:14px; margin-bottom:12px; box-shadow:0 8px 18px rgba(17,24,39,.04); }
+    .subcat-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+    .subcat-name { font-size:16px; font-weight:800; line-height:1.2; }
+    .subcat-meta { font-size:12px; color:var(--muted); white-space:nowrap; }
+    .products { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .product-pill { background:#f5f7fa; border:1px solid #e6ebf2; color:#344054; border-radius:999px; padding:7px 10px; font-size:12px; line-height:1.25; }
+    .product-pill.launch { background:#fff7ed; border-color:#ffd8af; color:#c2410c; font-weight:800; }
+
+    @media (max-width: 1460px) {
+      .board { min-width:1240px; }
+      .hero { width:610px; }
+      .cluster.top { grid-template-columns: repeat(3, minmax(220px, 290px)); }
+      .cluster.bottom { grid-template-columns: repeat(4, minmax(210px, 265px)); }
+    }
+    @media (max-width: 980px) {
+      .topbar { padding:16px; align-items:flex-start; }
+      .title p { max-width:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="title-wrap">
+        <div class="brand-dot"></div>
+        <div class="title">
+          <h1>Portfólio Mave — Guarda-chuva Interativo</h1>
+          <p>Nova versão com visual mais estratégico e mais próximo da lógica de arquitetura de marca: centro forte, categorias fixas ao redor e leitura detalhada na lateral.</p>
+        </div>
+      </div>
+      <div class="actions">
+        <label for="fileInput" class="file-label">Atualizar planilha</label>
+        <input id="fileInput" class="file-input" type="file" accept=".xlsx,.xls" />
+        <button class="btn secondary" id="resetBtn" type="button">Voltar para base padrão</button>
+        <div class="file-badge" id="fileName">Base padrão carregada</div>
+      </div>
+    </div>
+
+    <div class="workspace">
+      <div class="map-area">
+        <div class="board" id="board">
+          <svg class="svg-layer" id="svgLayer" viewBox="0 0 1320 880" preserveAspectRatio="none"></svg>
+
+          <div class="hero" id="hero">
+            <div class="hero-pill">Arquitetura de marca e portfólio</div>
+            <div class="hero-cloud">
+              <h2 id="macroName">Portfólio Mave</h2>
+              <p>Um guarda-chuva visual para navegar pelas categorias, entender sua lógica estratégica e consultar tudo que cada frente contempla.</p>
+              <div class="mini-stats" id="globalStats"></div>
+            </div>
+          </div>
+
+          <div class="cluster top" id="topCluster"></div>
+          <div class="cluster bottom" id="bottomCluster"></div>
+        </div>
+      </div>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div>
+            <div class="sidebar-overline">Categoria</div>
+            <h2 class="sidebar-title" id="sidebarTitle">Selecione uma categoria</h2>
+          </div>
+          <button class="close-btn" id="closeBtn" type="button">×</button>
+        </div>
+        <div class="sidebar-body" id="sidebarBody">
+          <p class="hint">Clique em qualquer categoria para abrir o detalhamento com objetivo, posicionamento, comunicação, critério de enquadramento e lista de subcategorias e produtos.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_DATA = {"macroCategoria": "Portfólio Mave", "categorias": [{"nome": "Mave Pro", "objetivoNegocio": "Categoria focada em produtos de Off Road (jet skis, motos, UTVs, quadriciclos, barcos) altamente premium, com embalagens estratégicas pensadas para gerar experiência e kits de produtos que fazem parte do contexto de consumo.", "objetivoPosicionamento": "Colocar a Mave como especialista em experiência do cliente e qualidade premium.", "objetivoComunicacao": "Comunicar desejo e lifestyle atrelados ao contexto do lazer, da paixão e dos hobbies.", "criterioEnquadramento": "Os itens ancorados em Mave Pro devem oferecer uma solução completa para usuários de motos, jet skis, quadriciclos, UTVs, barcos e outros veículos de hobby e passeio. Possuem uma experiência de embalagem, contexto e usabilidade acoplada ao produto e alto valor agregado, com precificações superiores em relação à linha tradicional.", "subcategorias": [{"nome": "Produtos da Categoria", "produtos": [{"nome": "CONJUNTO MAVE PRO CINTA E CATRACA 1500KG 40MM COM CASE", "lancamento": false, "status": ""}, {"nome": "CATRACA RETRÁTIL", "lancamento": false, "status": ""}, {"nome": "KIT ESTICADOR DE MOTO 800KG", "lancamento": false, "status": ""}, {"nome": "KIT MOTO CATRACA 800KG 25MM", "lancamento": false, "status": ""}, {"nome": "KIT CINTA RACK 400KG 25MM", "lancamento": false, "status": ""}, {"nome": "CINTA PARA RACK PREMIUM", "lancamento": true, "status": "lançamento"}, {"nome": "KIT CINTA TRILHO MAVE PRO", "lancamento": true, "status": "lançamento"}, {"nome": "CATRACA NÁUTICA", "lancamento": true, "status": "lançamento"}, {"nome": "CINTA PARA RACK PREMIUM", "lancamento": true, "status": "lançamento"}], "totalProdutos": 9, "totalLancamentos": 4}], "totalProdutos": 9, "totalLancamentos": 4}, {"nome": "Amarração", "objetivoNegocio": "Principal categoria da Mave, especialmente devido à produção própria das cintas de amarração. Possui itens profissionais destinados à indústria e aos caminhoneiros para todas as finalidades de amarração de cargas em diferentes contextos de transporte e uso.", "objetivoPosicionamento": "Expertise e qualidade na produção de cintas, catracas, extensores de lona, redes e ganchos feitos para durar e garantir a segurança no uso.", "objetivoComunicacao": "Desenvolver a imagem de uma das maiores fabricantes de itens de amarração do Brasil levando a Carga Segura para todo o país e o exterior. Conscientizar e democratizar o uso destes itens para diversas finalidades.", "criterioEnquadramento": "Pertencem à categoria Amarração os produtos cuja função principal é fixar, estabilizar, prender, tensionar ou conter cargas, objetos e volumes em diferentes contextos de transporte, movimentação e uso profissional ou utilitário. A lógica de enquadramento considera a função principal do item, sua percepção de compra e sua proximidade com as famílias centrais de amarração da Mave.", "subcategorias": [{"nome": "Premium", "produtos": [{"nome": "CONJUNTO CINTA E CATRACA 1500KG 35MM 9M J", "lancamento": false, "status": ""}, {"nome": "CONJUNTO DE CINTA E CATRACA PREMIUM 3000KG 9M J PRETO", "lancamento": false, "status": ""}, {"nome": "CONJUNTO DE CINTA E CATRACA PREMIUM 6000KG 9M J PRETO", "lancamento": true, "status": "lançamento"}, {"nome": "CONJUNTO CINTA E CATRACA PREMIUM 5000KG 9M J PRETO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR 6MM (TODAS AS VERSÕES)", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 5000KG 5 FUROS", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 100MM", "lancamento": false, "status": ""}], "totalProdutos": 7, "totalLancamentos": 1}, {"nome": "Linha Leve", "produtos": [{"nome": "CONJUNTO DE CINTA E CATRACA 800KG 25MM 3M", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 1500KG 25MM 3M S", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 1500KG 35MM 3M S", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 1500KG 25MM 6M J", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E ESTICADOR 800KG 25MM 3M S", "lancamento": false, "status": ""}], "totalProdutos": 5, "totalLancamentos": 0}, {"nome": "Conjuntos de Amarração", "produtos": [{"nome": "CONJUNTO SLACKLINE 3000KG LARANJA", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 5000KG CEGONHEIRO 4M LARANJA", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 5000KG 9M J COMPACTO BRANCO", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 5000KG 9M J COMPACTO LARANJA", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 10000KG 9M PATOLA BRANCO", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 10000KG 9M J BRANCO", "lancamento": false, "status": ""}, {"nome": "CONJUNTO CINTA E CATRACA 10000KG 9M J LARANJA", "lancamento": false, "status": ""}, {"nome": "CONJUNTO BÁU COM TERMINAL FIVELA", "lancamento": false, "status": ""}, {"nome": "CONJUNTO GRANELEIRO 1500KG 35MM PRETO", "lancamento": false, "status": ""}, {"nome": "CONJUNTO GRANELEIRO 3000KG", "lancamento": false, "status": ""}, {"nome": "CINTA BARRIGUEIRA 3000KG 40CM COM GANCHO", "lancamento": false, "status": ""}, {"nome": "BARRIGUEIRA DE CEGONHEIRA 3000KG COM ALÇA", "lancamento": false, "status": ""}], "totalProdutos": 12, "totalLancamentos": 0}, {"nome": "Cintas", "produtos": [{"nome": "CINTA 10000KG 9M PATOLA LARANJA", "lancamento": false, "status": ""}, {"nome": "CINTA 10000KG 9M J LARANJA", "lancamento": false, "status": ""}, {"nome": "CINTA 10000KG 9M PATOLA BRANCO", "lancamento": false, "status": ""}, {"nome": "CINTA 10000KG 9M J BRANCO", "lancamento": false, "status": ""}, {"nome": "CINTA 10000KG 6M J", "lancamento": false, "status": ""}, {"nome": "CINTA 7000KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTA 5000KG 9M SIDER", "lancamento": false, "status": ""}, {"nome": "CINTA 5000KG 9M J PRETO", "lancamento": false, "status": ""}, {"nome": "CINTA 5000KG 9M J BRANCO", "lancamento": false, "status": ""}, {"nome": "CINTA 5000KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTA 4000KG 9M SIDER", "lancamento": false, "status": ""}, {"nome": "CINTA 4000KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTA 3000KG 9M SIDER", "lancamento": false, "status": ""}, {"nome": "CINTA 3000KG 9M J BRANCO", "lancamento": false, "status": ""}, {"nome": "CINTA 3000KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTA 3000KG 9M J PRETO", "lancamento": false, "status": ""}, {"nome": "CINTA 2000KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTA 2000KG 9M SIDER", "lancamento": false, "status": ""}, {"nome": "CINTA 1500KG 9M SIDER", "lancamento": false, "status": ""}, {"nome": "CINTA 1500KG 9M J", "lancamento": false, "status": ""}, {"nome": "CINTAS EM METRO", "lancamento": false, "status": ""}, {"nome": "CINTA LATERAL SIDER 45MM COM FIXADOR", "lancamento": false, "status": ""}, {"nome": "CINTA LATERAL SIDER 45MM", "lancamento": false, "status": ""}], "totalProdutos": 23, "totalLancamentos": 0}, {"nome": "Catracas", "produtos": [{"nome": "CATRACA 10000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 10000KG J LARANJA", "lancamento": false, "status": ""}, {"nome": "CATRACA 10000KG PATOLA", "lancamento": false, "status": ""}, {"nome": "CATRACA 10000KG PATOLA BRANCO", "lancamento": false, "status": ""}, {"nome": "CATRACA 1500KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 1500KG SIDER", "lancamento": false, "status": ""}, {"nome": "CATRACA 2000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 2000KG SIDER", "lancamento": false, "status": ""}, {"nome": "CATRACA 3000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 3000KG J PRETO", "lancamento": false, "status": ""}, {"nome": "CATRACA 3000KG SIDER", "lancamento": false, "status": ""}, {"nome": "CATRACA 4000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 4000KG SIDER", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG INVERTIDA", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG INVERTIDA J", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG J BRANCO", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG J COMPACTA BRANCA", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG J COMPACTA LARANJA", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG J PRETA", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG SIDER", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG SIDER BRANCO", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG SIDER COMPACTO BRANCO", "lancamento": false, "status": ""}, {"nome": "CATRACA 5000KG SIDER COMPACTO LARANJA", "lancamento": false, "status": ""}, {"nome": "CATRACA 7000KG J", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 10000KG", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 1500KG 25MM", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 1500KG 35MM", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 2000KG", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 3000KG", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 5000KG", "lancamento": false, "status": ""}, {"nome": "CATRACA MÓVEL 5000KG COMPACTA", "lancamento": false, "status": ""}, {"nome": "CATRACA MOVEL 800KG 25MM", "lancamento": false, "status": ""}], "totalProdutos": 33, "totalLancamentos": 0}, {"nome": "Catracas Fixas", "produtos": [{"nome": "CATRACA FIXA SIDER CINCO FUROS ZINCADA", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 5000KG CINCO FUROS", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 5000KG TRÊS FUROS", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA SIDER TRÊS FUROS ZINCADA", "lancamento": false, "status": ""}, {"nome": "TRIANGULO SUPORTE CATRACA SIDER", "lancamento": false, "status": ""}, {"nome": "CHAPA CATRACA FIXA 50MM", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 100MM COM CHAPA EM L", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 100MM COM CHAPA", "lancamento": false, "status": ""}, {"nome": "CATRACA FIXA 100MM SEM CHAPA", "lancamento": false, "status": ""}], "totalProdutos": 9, "totalLancamentos": 0}, {"nome": "Ganchos", "produtos": [{"nome": "GANCHO 2000KG J", "lancamento": false, "status": ""}, {"nome": "GANCHO QUADRADO", "lancamento": false, "status": ""}, {"nome": "GANCHO 1500KG 25MM J", "lancamento": false, "status": ""}, {"nome": "GANCHO 1500KG 35MM J", "lancamento": false, "status": ""}, {"nome": "GANCHO 1500KG S", "lancamento": false, "status": ""}, {"nome": "GANCHO 3000KG J", "lancamento": false, "status": ""}, {"nome": "GANCHO 3000KG SIDER", "lancamento": false, "status": ""}, {"nome": "GANCHO 5000KG J", "lancamento": false, "status": ""}, {"nome": "GANCHO 5000KG SIDER", "lancamento": false, "status": ""}, {"nome": "GANCHO 10000KG J", "lancamento": false, "status": ""}, {"nome": "GANCHO 10000KG PATOLA", "lancamento": false, "status": ""}, {"nome": "GANCHO GRANELEIRO H", "lancamento": false, "status": ""}, {"nome": "GANCHO TRIÂNGULO", "lancamento": false, "status": ""}, {"nome": "GANCHO GIRATÓRIO", "lancamento": false, "status": ""}], "totalProdutos": 14, "totalLancamentos": 0}, {"nome": "Extensores", "produtos": [{"nome": "EXTENSOR METAL GANCHO PRETO 6MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR COM 2 GANCHOS 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR SEM GANCHO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL VERMELHO PREMIUM 6MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL PRETO PREMIUM 6MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL AZUL PREMIUM 6MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL GANCHO PRETO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO VERMELHO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO VERDE 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO CINZA 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO AZUL 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO AMARELO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLÁSTICO MESCLADO VERMELHO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO MESCLADO VERDE 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO MESCLADO CINZA 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO MESCLADO AZUL 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO MESCLADO AMARELO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR EM METRO 6MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR EM METRO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO PRETO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL PRETO 5MM", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO VERMELHO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO VERDE", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO MESCLADO PRETO", "lancamento": false, "status": ""}, {"nome": "EENSOR PLASTICO CINZA", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO AZUL", "lancamento": false, "status": ""}, {"nome": "EXTENSOR PLASTICO AMARELO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL VERMELHO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL VERDE", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL MESCLADO PRETO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL CINZA", "lancamento": false, "status": ""}, {"nome": "EXTENSOR METAL AMARELO", "lancamento": false, "status": ""}, {"nome": "EXTENSOR ELÁSTICO COM GANCHO AZUL METAL", "lancamento": false, "status": ""}], "totalProdutos": 33, "totalLancamentos": 0}, {"nome": "Redes", "produtos": [{"nome": "REDE DE CONTENÇÃO 4 GANCHOS PRETO", "lancamento": false, "status": ""}, {"nome": "REDE DE CONTENÇÃO 4 GANCHOS BRANCO", "lancamento": false, "status": ""}, {"nome": "REDE DE CONTENÇÃO 4 GANCHOS LARANJA", "lancamento": false, "status": ""}, {"nome": "REDE DE CONTENÇÃO 6 ALÇAS PRETO", "lancamento": false, "status": ""}, {"nome": "REDE DE CONTENÇÃO 6 ALÇAS BRANCA", "lancamento": false, "status": ""}, {"nome": "REDE DE CONTENÇÃO 6 ALÇAS LARANJA", "lancamento": false, "status": ""}, {"nome": "REDE PARA MOTO", "lancamento": false, "status": ""}], "totalProdutos": 7, "totalLancamentos": 0}], "totalProdutos": 143, "totalLancamentos": 1}, {"nome": "Elevação", "objetivoNegocio": "Abertura de categoria para o mercado industrial. Amplia a possibilidade de venda e de mix para esse novo segmento.", "objetivoPosicionamento": "Demonstrar expertise e posicionamento técnico na ampliação da categoria para um mercado mais pragmático e com regras bem estipuladas.", "objetivoComunicacao": "Encorpar essa categoria significa adentrar novos mercados, especialmente ligados à indústria e principalmente falar uma língua muito mais técnica de segurança, com regras mais rígidas e treinamentos de segurança mais intensos.", "criterioEnquadramento": "Produtos que tenham como objetivo principal elevar ou içar cargas em qualquer contexto.", "subcategorias": [{"nome": "Cintas de Elevação", "produtos": [{"nome": "CINTA PARA ELEVAÇÃO 10000KG", "lancamento": false, "status": ""}, {"nome": "CINTA PARA ELEVAÇÃO 8000KG", "lancamento": false, "status": ""}, {"nome": "CINTA PARA IÇAMENTO DE CARGA 180 MM 6000 KG", "lancamento": false, "status": ""}, {"nome": "CINTA PARA ELEVAÇÃO 5000KG", "lancamento": false, "status": ""}, {"nome": "CINTA PARA ELEVAÇÃO DE CARGA 4000KG", "lancamento": false, "status": ""}, {"nome": "CINTA PARA ELEVAÇÃO 3000KG", "lancamento": false, "status": ""}, {"nome": "Cinta de elevação 2 toneladas", "lancamento": false, "status": ""}, {"nome": "CINTA PARA ELEVAÇÃO DE CARGA 1000KG", "lancamento": false, "status": ""}], "totalProdutos": 8, "totalLancamentos": 0}, {"nome": "Ferragens de Elevação", "produtos": [{"nome": "Ferragens de Elevação (Lançamento)", "lancamento": true, "status": "Lançamento"}], "totalProdutos": 1, "totalLancamentos": 1}], "totalProdutos": 9, "totalLancamentos": 1}, {"nome": "Movimentação", "objetivoNegocio": "Aumento de ticket médio e mix com a mesma estratégia comercial. Em um segundo momento, expansão da frente de prospecção para novos mercados.", "objetivoPosicionamento": "Oferecer uma solução completa para diversas necessidades do mercado de transportes e movimentação de cargas.", "objetivoComunicacao": "Comunicar a facilidade de ser cliente Mave: itens de alta qualidade e custo benefício para adentrar as negociações atuais de mercado além da unificação de compras de diversos itens em um só fornecedor.", "criterioEnquadramento": "Produtos que tenham como objetivo principal movimentar e transportar cargas em qualquer contexto.", "subcategorias": [{"nome": "Carrinhos de Carga", "produtos": [{"nome": "CARRINHO DE CARRGA 400KG", "lancamento": false, "status": ""}, {"nome": "CARRINHO DE CARRGA 200KG", "lancamento": false, "status": ""}], "totalProdutos": 2, "totalLancamentos": 0}], "totalProdutos": 2, "totalLancamentos": 0}, {"nome": "Acessórios para Caminhão", "objetivoNegocio": "Ampliar o fornecimento de itens amplamente utilizados por caminhoneiros no dia a dia do transporte, otimizando a distribuição e ampliando o ticket médio com a mesma força de vendas.", "objetivoPosicionamento": "Oferecer uma solução completa para diversas necessidades do mercado com alta qualidade.", "objetivoComunicacao": "Comunicar a facilidade de ser cliente Mave: itens de alta qualidade e custo benefício para adentrar as negociações atuais de mercado além da unificação de compras de diversos itens em um só fornecedor com qualidade assegurada pela reputação da marca.", "criterioEnquadramento": "O produto precisa ser utilizado no dia a dia de quem utiliza o caminhão para transporte. Os itens podem ser fixos nas estruturas do caminhão, utilizados de forma específica em alguns momentos da rotina e até resolverem problemas e desafios pontuais.", "subcategorias": [{"nome": "Toldos", "produtos": [{"nome": "Toldo de Lona com Armação para Caminhão 2x2", "lancamento": false, "status": ""}, {"nome": "Toldo de Lona com Armação para Caminhão 3x2", "lancamento": false, "status": ""}], "totalProdutos": 2, "totalLancamentos": 0}, {"nome": "Pinos, fixadores e ferragens de carroceria", "produtos": [{"nome": "PINO QUEBRA DEDO 5/16 CABO DE AÇO", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 1/4 CABO DE AÇO", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 5/16 CORRENTE", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 1/4 CORRENTE", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 5/16 NYLON", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 1/4 NYLON", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 5/16 SIMPLES", "lancamento": false, "status": ""}, {"nome": "PINO QUEBRA DEDO 1/4 SIMPLES", "lancamento": false, "status": ""}, {"nome": "PINO FUEIRO 7 MM COM CORRENTE", "lancamento": false, "status": ""}, {"nome": "FIXADOR DA TAMPA DE CARROCERIA 7/8", "lancamento": false, "status": ""}, {"nome": "FIXADOR DA TAMPA DE CARROCERIA 3/4", "lancamento": false, "status": ""}, {"nome": "FIXADOR DA TAMPA DE CARROCERIA 5/8", "lancamento": false, "status": ""}, {"nome": "FIXADOR EM S ENGATE CORRENTE", "lancamento": false, "status": ""}, {"nome": "ARGOLA ENGATE CORRENTE", "lancamento": false, "status": ""}, {"nome": "TRILHO DE AMARRAÇÃO BAÚ", "lancamento": false, "status": ""}, {"nome": "JOANINHA 2,50x65", "lancamento": false, "status": ""}, {"nome": "FIVELA LATERAL SIDER", "lancamento": false, "status": ""}, {"nome": "JOANINHA 3x90", "lancamento": false, "status": ""}, {"nome": "GRAMPO TOMBADOR EM U", "lancamento": false, "status": ""}, {"nome": "GRAMPO TOMBADOR 4,50MM", "lancamento": false, "status": ""}], "totalProdutos": 20, "totalLancamentos": 0}, {"nome": "Cabos", "produtos": [{"nome": "CABO DE AÇO PARA LACRAR CARGA", "lancamento": false, "status": ""}], "totalProdutos": 1, "totalLancamentos": 0}, {"nome": "Capas de Porca", "produtos": [{"nome": "Capas de Porca", "lancamento": true, "status": "Lançamento"}], "totalProdutos": 1, "totalLancamentos": 1}, {"nome": "Cabo de Segurança de Cabine", "produtos": [{"nome": "Cabo de Segurança Cabine", "lancamento": true, "status": "Lançamento"}], "totalProdutos": 1, "totalLancamentos": 1}, {"nome": "Mangueiras", "produtos": [{"nome": "MANGUEIRA CAVALO CARRETA", "lancamento": true, "status": "Lançamento"}, {"nome": "MANGUEIRA ESPIRAL", "lancamento": true, "status": "Lançamento"}], "totalProdutos": 2, "totalLancamentos": 2}], "totalProdutos": 27, "totalLancamentos": 4}, {"nome": "Mangueiras Industriais", "objetivoNegocio": "Ampliar a fabricação própria com outras frentes estratégicas de produtos utilizados pela indústria. Aproveitar a base de clientes que já atende a indústria e ampliar a prospecção direta desses ICPs.", "objetivoPosicionamento": "Oferecer uma solução completa para diversas necessidades do mercado com alta qualidade.", "objetivoComunicacao": "Comunicar a facilidade de ser cliente Mave: itens de alta qualidade e custo benefício para adentrar as negociações atuais de mercado além da unificação de compras de diversos itens em um só fornecedor com qualidade assegurada pela reputação da marca.", "criterioEnquadramento": "Qualquer tipo de mangueira industrial que seja utilizada em máquinas, equipamentos e outras frentes de produção industrial.", "subcategorias": [{"nome": "Mangueiras Industriais", "produtos": [{"nome": "MANGUEIRAS EM METRO PARA MÁQUINAS INDUSTRIAIS", "lancamento": true, "status": "Lançamento"}], "totalProdutos": 1, "totalLancamentos": 1}], "totalProdutos": 1, "totalLancamentos": 1}, {"nome": "Mave EPIs", "objetivoNegocio": "Tatear o lado do mercado de EPIs através de um item de venda facilitada e argumentação simples.", "objetivoPosicionamento": "A solução completa para qualquer situação, na estrada ou na indústria.", "objetivoComunicacao": "Reforço da mensagem de queremos levar a segurança para todos os momentos da operação.", "criterioEnquadramento": "Itens de Segurança do Trabalho com CA aprovado.", "subcategorias": [{"nome": "Luvas", "produtos": [{"nome": "LUVA COURO VAQUETA COM PUNHO", "lancamento": false, "status": ""}], "totalProdutos": 1, "totalLancamentos": 0}], "totalProdutos": 1, "totalLancamentos": 0}]};
+    const DATA_STORAGE_KEY = 'mave-portfolio-guardachuva-data-v1';
+    const FILE_STORAGE_KEY = 'mave-portfolio-guardachuva-file-v1';
+    const CATEGORY_COLORS = {
+      'Mave Pro': ['#8754ff','#b390ff'],
+      'Amarração': ['#2aae60','#7bd79f'],
+      'Elevação': ['#3b82f6','#8db9ff'],
+      'Movimentação': ['#e45454','#f29c9c'],
+      'Acessórios para Caminhão': ['#129a8f','#7dd7cf'],
+      'Mangueiras Industriais': ['#f28a22','#ffc06d'],
+      'Mave EPIs': ['#6b7280','#a9b1bd']
+    };
+
+    let data = loadSavedData();
+    let activeCategory = null;
+
+    const topCluster = document.getElementById('topCluster');
+    const bottomCluster = document.getElementById('bottomCluster');
+    const macroName = document.getElementById('macroName');
+    const globalStats = document.getElementById('globalStats');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarTitle = document.getElementById('sidebarTitle');
+    const sidebarBody = document.getElementById('sidebarBody');
+    const svgLayer = document.getElementById('svgLayer');
+    const fileNameEl = document.getElementById('fileName');
+
+    function loadSavedData() {
+      try {
+        const raw = localStorage.getItem(DATA_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : DEFAULT_DATA;
+      } catch (e) {
+        return DEFAULT_DATA;
+      }
+    }
+
+    function loadSavedFileName() {
+      try {
+        return localStorage.getItem(FILE_STORAGE_KEY) || 'Base padrão carregada';
+      } catch (e) {
+        return 'Base padrão carregada';
+      }
+    }
+
+    function saveData(dataset, fileName) {
+      try {
+        localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(dataset));
+        if (fileName) localStorage.setItem(FILE_STORAGE_KEY, fileName);
+      } catch (e) {}
+    }
+
+    function esc(value) {
+      return (value || '').toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function isLaunch(status) {
+      return /lan/i.test((status || '').toString());
+    }
+
+    function parseWorkbookToData(workbook) {
+      const targetSheet = workbook.SheetNames.includes('Portfólio') ? 'Portfólio' : workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[targetSheet];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const categories = [];
+      const catMap = new Map();
+      const macroCategoria = rows[0]?.['Macro Categoria'] || 'Portfólio Mave';
+
+      rows.forEach((row) => {
+        const categoria = (row['Categoria'] || '').toString().trim();
+        const subcat = (row['Linha / Subcategoria'] || '').toString().trim() || 'Sem subcategoria';
+        const produto = (row['Produto'] || '').toString().trim();
+        if (!categoria) return;
+
+        if (!catMap.has(categoria)) {
+          const cat = {
+            nome: categoria,
+            objetivoNegocio: (row['Objetivo de Negócio'] || '').toString().trim(),
+            objetivoPosicionamento: (row['Objetivo de Posicionamento'] || '').toString().trim(),
+            objetivoComunicacao: (row['Objetivo de Comunicação'] || '').toString().trim(),
+            criterioEnquadramento: (row['Critério de Enquadramento'] || '').toString().trim(),
+            subcategorias: [],
+            totalProdutos: 0,
+            totalLancamentos: 0,
+          };
+          categories.push(cat);
+          catMap.set(categoria, cat);
+        }
+
+        const cat = catMap.get(categoria);
+        let sub = cat.subcategorias.find(item => item.nome === subcat);
+        if (!sub) {
+          sub = { nome: subcat, produtos: [], totalProdutos: 0, totalLancamentos: 0 };
+          cat.subcategorias.push(sub);
+        }
+
+        if (produto) {
+          const launch = isLaunch(row['Status']);
+          sub.produtos.push({ nome: produto, lancamento: launch, status: (row['Status'] || '').toString().trim() });
+          sub.totalProdutos += 1;
+          cat.totalProdutos += 1;
+          if (launch) {
+            sub.totalLancamentos += 1;
+            cat.totalLancamentos += 1;
+          }
+        }
+      });
+
+      return { macroCategoria, categorias: categories };
+    }
+
+    function renderGlobalStats() {
+      const totalCats = (data.categorias || []).length;
+      const totalProducts = (data.categorias || []).reduce((acc, cat) => acc + (cat.totalProdutos || 0), 0);
+      const totalLaunches = (data.categorias || []).reduce((acc, cat) => acc + (cat.totalLancamentos || 0), 0);
+      const totalSubcats = (data.categorias || []).reduce((acc, cat) => acc + (cat.subcategorias?.length || 0), 0);
+      globalStats.innerHTML = `
+        <span class="mini-chip">${totalCats} categorias</span>
+        <span class="mini-chip">${totalSubcats} subcategorias</span>
+        <span class="mini-chip">${totalProducts} produtos</span>
+        <span class="mini-chip">${totalLaunches} lançamentos</span>
+      `;
+    }
+
+    function renderCards() {
+      const categories = data.categorias || [];
+      const top = categories.slice(0, 3);
+      const bottom = categories.slice(3, 7);
+      topCluster.innerHTML = '';
+      bottomCluster.innerHTML = '';
+      top.forEach(cat => topCluster.appendChild(buildCard(cat)));
+      bottom.forEach(cat => bottomCluster.appendChild(buildCard(cat)));
+    }
+
+    function buildCard(category) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'category-card' + (activeCategory === category.nome ? ' active' : '');
+      button.dataset.category = category.nome;
+      const colors = CATEGORY_COLORS[category.nome] || ['#94a3b8', '#cbd5e1'];
+      const summary = category.objetivoPosicionamento || category.objetivoNegocio || category.objetivoComunicacao || 'Sem descrição cadastrada.';
+      button.innerHTML = `
+        <div class="accent" style="background:linear-gradient(90deg, ${colors[0]}, ${colors[1]});"></div>
+        <div>
+          <div class="card-header">
+            <h3 class="card-title">${esc(category.nome)}</h3>
+            ${category.totalLancamentos ? `<span class="card-tag">${category.totalLancamentos} lançamento${category.totalLancamentos > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          <div class="card-summary">${esc(summary)}</div>
+        </div>
+        <div class="card-footer">
+          <span class="metric">${category.totalProdutos} produtos</span>
+          <span class="metric">${category.subcategorias.length} subcategorias</span>
+          ${category.totalLancamentos ? '<span class="metric launch">Em destaque</span>' : ''}
+        </div>
+      `;
+      button.addEventListener('click', () => openCategory(category, true));
+      return button;
+    }
+
+    function openCategory(category, updateState = true) {
+      activeCategory = category.nome;
+      document.querySelectorAll('.category-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.category === category.nome);
+      });
+      sidebarTitle.textContent = category.nome;
+      const colors = CATEGORY_COLORS[category.nome] || ['#94a3b8', '#cbd5e1'];
+      sidebarBody.innerHTML = `
+        <div style="height:8px;border-radius:999px;background:linear-gradient(90deg, ${colors[0]}, ${colors[1]});margin-bottom:18px;"></div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Produtos</div><div class="stat-value">${category.totalProdutos}</div></div>
+          <div class="stat-card"><div class="stat-label">Subcategorias</div><div class="stat-value">${category.subcategorias.length}</div></div>
+          <div class="stat-card"><div class="stat-label">Lançamentos</div><div class="stat-value">${category.totalLancamentos}</div></div>
+          <div class="stat-card"><div class="stat-label">Macro categoria</div><div class="stat-value" style="font-size:15px;">${esc(data.macroCategoria || 'Portfólio Mave')}</div></div>
+        </div>
+
+        <div class="section"><h3>Objetivo de negócio</h3><p>${esc(category.objetivoNegocio || 'Não informado.')}</p></div>
+        <div class="section"><h3>Objetivo de posicionamento</h3><p>${esc(category.objetivoPosicionamento || 'Não informado.')}</p></div>
+        <div class="section"><h3>Objetivo de comunicação</h3><p>${esc(category.objetivoComunicacao || 'Não informado.')}</p></div>
+        <div class="section"><h3>Critério de enquadramento</h3><p>${esc(category.criterioEnquadramento || 'Não informado.')}</p></div>
+
+        <div class="section">
+          <h3>O que a categoria contempla</h3>
+          ${category.subcategorias.map(sub => `
+            <div class="subcat">
+              <div class="subcat-head">
+                <div class="subcat-name">${esc(sub.nome)}</div>
+                <div class="subcat-meta">${sub.totalProdutos} produto${sub.totalProdutos !== 1 ? 's' : ''} · ${sub.totalLancamentos} lançamento${sub.totalLancamentos !== 1 ? 's' : ''}</div>
+              </div>
+              <div class="products">
+                ${sub.produtos.map(prod => `<span class="product-pill ${prod.lancamento ? 'launch' : ''}">${esc(prod.nome)}${prod.lancamento ? ' • lançamento' : ''}</span>`).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      sidebar.classList.add('open');
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+    }
+
+    function drawLines() {
+      const board = document.getElementById('board').getBoundingClientRect();
+      const hero = document.getElementById('hero').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.category-card')];
+      const startX = hero.left - board.left + hero.width / 2;
+      const startY = hero.bottom - board.top - 12;
+      svgLayer.innerHTML = '';
+
+      cards.forEach((card, idx) => {
+        const rect = card.getBoundingClientRect();
+        const endX = rect.left - board.left + rect.width / 2;
+        const endY = rect.top - board.top + 2;
+        const delta = Math.abs(endX - startX);
+        const bendY = startY + (endY - startY) * 0.42;
+        const curve = Math.max(70, Math.min(180, delta * 0.18));
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const d = `M ${startX} ${startY} C ${startX} ${bendY - 34}, ${endX} ${bendY - curve}, ${endX} ${endY}`;
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#cfd6df');
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-dasharray', idx < 3 ? '0' : '0');
+        svgLayer.appendChild(path);
+
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', endX);
+        dot.setAttribute('cy', endY);
+        dot.setAttribute('r', '5');
+        dot.setAttribute('fill', '#f28a22');
+        dot.setAttribute('opacity', '.55');
+        svgLayer.appendChild(dot);
+      });
+    }
+
+    function render() {
+      macroName.textContent = data.macroCategoria || 'Portfólio Mave';
+      fileNameEl.textContent = loadSavedFileName();
+      renderGlobalStats();
+      renderCards();
+      const selected = (data.categorias || []).find(cat => cat.nome === activeCategory) || (data.categorias || [])[0];
+      if (selected) openCategory(selected, false);
+      requestAnimationFrame(drawLines);
+    }
+
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        data = parseWorkbookToData(workbook);
+        activeCategory = null;
+        saveData(data, file.name);
+        fileNameEl.textContent = file.name;
+        render();
+      } catch (error) {
+        console.error(error);
+        alert('Não foi possível ler a planilha. Verifique se ela está na estrutura esperada.');
+      } finally {
+        event.target.value = '';
+      }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      data = DEFAULT_DATA;
+      activeCategory = null;
+      try {
+        localStorage.removeItem(DATA_STORAGE_KEY);
+        localStorage.removeItem(FILE_STORAGE_KEY);
+      } catch (e) {}
+      fileNameEl.textContent = 'Base padrão carregada';
+      render();
+    });
+
+    document.getElementById('closeBtn').addEventListener('click', closeSidebar);
+    window.addEventListener('resize', drawLines);
+
+    render();
+  </script>
+</body>
+</html>
